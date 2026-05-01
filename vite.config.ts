@@ -40,8 +40,8 @@ export default defineConfig(({ mode }) => {
           background_color: '#020617',
           display: 'standalone',
           orientation: 'portrait',
-          scope: '/',
-          start_url: '/',
+          scope: './',
+          start_url: './',
           icons: [
             {
               src: 'icon.png',
@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
-    base: '/',
+    base: './',
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
