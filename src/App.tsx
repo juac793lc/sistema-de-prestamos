@@ -84,6 +84,26 @@ function safeFormatDate(d: any, formatStr: string = 'dd MMMM yyyy'): string {
 }
 
 export default function App() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddLoan, setShowAddLoan] = useState(false);
@@ -682,6 +702,8 @@ export default function App() {
           payments={allPayments} 
           clients={clients} 
           onOpenPayment={(loan) => setSelectedLoanForPayment(loan)} 
+          deferredPrompt={deferredPrompt}
+          onInstall={handleInstallClick}
         />
       );
       case 'paid': return <PaidTodayScreen loans={allLoans} payments={allPayments} clients={clients} />;
@@ -723,12 +745,23 @@ export default function App() {
         onLogout={handleAdminLogout}
         onUpdateTeam={handleUpdateTeam}
         showAlert={showAlert}
+        deferredPrompt={deferredPrompt}
+        onInstall={handleInstallClick}
       />
     );
   }
 
   if (!isBackupActive) {
-    return <LoginScreen onLogin={saveSettings} onAdminLogin={handleAdminLogin} isSyncing={isSyncing} isAdminSyncing={isAdminSyncing} />;
+    return (
+      <LoginScreen 
+        onLogin={saveSettings} 
+        onAdminLogin={handleAdminLogin} 
+        isSyncing={isSyncing} 
+        isAdminSyncing={isAdminSyncing} 
+        deferredPrompt={deferredPrompt}
+        onInstall={handleInstallClick}
+      />
+    );
   }
 
   return (
@@ -900,7 +933,9 @@ function AdminDashboard({
   onRefresh, 
   onLogout, 
   onUpdateTeam,
-  showAlert
+  showAlert,
+  deferredPrompt,
+  onInstall
 }: { 
   adminUser: string, 
   team: {name: string, pin: string}[], 
@@ -909,10 +944,13 @@ function AdminDashboard({
   onRefresh: () => void, 
   onLogout: () => void,
   onUpdateTeam: (team: {name: string, pin: string}[], checkName?: string) => Promise<boolean>,
-  showAlert: (title: string, message: string) => void
+  showAlert: (title: string, message: string) => void,
+  deferredPrompt: any,
+  onInstall: () => void
 }) {
   const [selectedWorkerName, setSelectedWorkerName] = useState<string | null>(null);
   const [showAddWorker, setShowAddWorker] = useState(false);
+  const [showAdminHelp, setShowAdminHelp] = useState(false);
   const [localIsSyncing, setLocalIsSyncing] = useState(false);
   const [filterType, setFilterType] = useState<'todos' | 'hoy' | 'cobrar' | 'atrasados' | 'vencidos'>('todos');
   const [workerToDelete, setWorkerToDelete] = useState<{name: string, pin: string} | null>(null);
@@ -1058,6 +1096,21 @@ function AdminDashboard({
           </div>
         </div>
         <div className="flex gap-2">
+          {deferredPrompt && (
+            <button 
+              onClick={onInstall}
+              className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-900/20 flex items-center gap-2"
+            >
+              <Download size={20} />
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Instalar</span>
+            </button>
+          )}
+          <button 
+            onClick={() => setShowAdminHelp(true)}
+            className="p-3 bg-white/5 text-white rounded-xl hover:bg-white/10 transition-colors"
+          >
+            <HelpCircle size={20} />
+          </button>
           <button 
             onClick={onRefresh}
             disabled={isLoading}
@@ -1377,6 +1430,82 @@ function AdminDashboard({
             }}
           />
         )}
+
+        {showAdminHelp && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowAdminHelp(false)}
+                className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="bg-slate-950 p-8 text-white relative">
+                <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-red-900/40">
+                  <Shield size={32} />
+                </div>
+                <h3 className="text-2xl font-black tracking-tighter uppercase leading-none">Ayuda Administrativa</h3>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">Guía de Gestión del Jefe</p>
+              </div>
+
+              <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black shrink-0 text-xs shadow-sm border border-blue-100">1</div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Monitoreo en Tiempo Real</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Visualiza las carteras de tus cobradores a medida que ellos **sincronizan su app** en el campo.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black shrink-0 text-xs shadow-sm border border-amber-100">2</div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Seguridad Individual</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Cada colaborador debe usar su propio usuario y pin (teléfono). **No compartas claves** para mantener reportes limpios.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-xl bg-green-50 text-green-600 flex items-center justify-center font-black shrink-0 text-xs shadow-sm border border-green-100">3</div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Filtros de Cobro</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Usa los filtros superiores para ver quién falta por cobrar (**Cobrar**) o quién tiene cuotas vencidas (**Atrasados**).</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-black shrink-0 text-xs shadow-sm border border-purple-100">4</div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">¿Cómo Vincular?</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Usa el botón de **"Vincular Cobrador"** (+), ingresa su nombre y el teléfono que usará como clave. Al sincronizar, su lista aparecerá aquí.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-black shrink-0 text-xs shadow-sm border border-red-100">5</div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Instalar App</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Pulsa el botón de **"Descargar"** (ícono de flecha) para instalar la app en la pantalla de inicio de tu celular.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white border-t border-slate-100">
+                <button 
+                  onClick={() => setShowAdminHelp(false)}
+                  className="w-full py-4 bg-slate-950 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all active:scale-95"
+                >
+                  Continuar Supervisión
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -1457,11 +1586,13 @@ function AddWorkerModal({ onClose, onAdd, isSyncing }: { onClose: () => void, on
 }
 
 
-function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing }: { 
+function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing, deferredPrompt, onInstall }: { 
   onLogin: (u: string, p: string, isRegister: boolean) => void, 
   onAdminLogin: (u: string, p: string, isRegister: boolean) => Promise<boolean>, 
   isSyncing: boolean,
-  isAdminSyncing: boolean
+  isAdminSyncing: boolean,
+  deferredPrompt: any,
+  onInstall: () => void
 }) {
   const [user, setUser] = useState('');
   const [pin, setPin] = useState('');
@@ -1473,19 +1604,17 @@ function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing }: {
     e.preventDefault();
     if (!user || !pin) return;
     
-    if (!isAdminLogin) {
-      if (pin.length < 11) {
-        alert("⚠️ La clave está incompleta. Por favor, coloque los 11 números completos (Ej: 929...).");
-        return;
-      }
-      if (/^(\d)\1+$/.test(pin)) {
-        alert("⚠️ Clave no permitida. No use números repetidos (Ej: 1111...).");
-        return;
-      }
-      if (/^(01234567890|12345678901|12345678910)$/.test(pin)) {
-        alert("⚠️ Clave no permitida. Por favor usa una clave más segura.");
-        return;
-      }
+    if (pin.length < 11) {
+      alert("⚠️ La clave está incompleta. Por favor, coloque los 11 números completos (Ej: 929...).");
+      return;
+    }
+    if (/^(\d)\1+$/.test(pin)) {
+      alert("⚠️ Clave no permitida. No use números repetidos (Ej: 1111...).");
+      return;
+    }
+    if (/^(01234567890|12345678901|12345678910)$/.test(pin)) {
+      alert("⚠️ Clave no permitida. Por favor usa una clave más segura.");
+      return;
     }
 
     if (isAdminLogin) {
@@ -1509,6 +1638,17 @@ function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing }: {
         className="w-full max-w-sm relative"
       >
         <div className="text-center mb-8">
+          {deferredPrompt && (
+            <motion.button 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              onClick={onInstall}
+              className="mb-4 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-900/40 flex items-center gap-2 mx-auto"
+            >
+              <Download size={16} />
+              Instalar Aplicación
+            </motion.button>
+          )}
           {!imageError ? (
             <img 
               src="/icon.png" 
@@ -1564,19 +1704,15 @@ function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing }: {
                 </div>
                 <input 
                   type={showPin ? "text" : "password"}
-                  inputMode={isAdminLogin ? "text" : "numeric"}
+                  inputMode="numeric"
                   required
-                  maxLength={isAdminLogin ? 20 : 11}
+                  maxLength={11}
                   value={pin}
                   onChange={e => {
                     const val = e.target.value;
-                    if (isAdminLogin) {
-                      setPin(val.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20));
-                    } else {
-                      setPin(val.replace(/\D/g, '').slice(0, 11));
-                    }
+                    setPin(val.replace(/\D/g, '').slice(0, 11));
                   }}
-                  placeholder={isAdminLogin ? "Letras, números y _" : "Ej: 929..."}
+                  placeholder="Ej: 929..."
                   className="w-full bg-black/20 border border-white/5 p-5 pl-14 pr-14 rounded-2xl font-bold text-white focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 tracking-widest shadow-inner"
                 />
                 <button 
@@ -1614,7 +1750,11 @@ function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing }: {
               <div className="pt-4 border-t border-white/5">
                 <button 
                    type="button"
-                   onClick={() => setIsAdminLogin(false)}
+                   onClick={() => {
+                     setIsAdminLogin(false);
+                     setUser('');
+                     setPin('');
+                   }}
                    className="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest transition-colors w-full"
                 >
                   Regresar a Portal de Cobrador
@@ -1626,7 +1766,11 @@ function LoginScreen({ onLogin, onAdminLogin, isSyncing, isAdminSyncing }: {
               <div className="pt-4 border-t border-white/5">
                 <button 
                    type="button"
-                   onClick={() => setIsAdminLogin(true)}
+                   onClick={() => {
+                     setIsAdminLogin(true);
+                     setUser('');
+                     setPin('');
+                   }}
                    className="text-[10px] font-black text-red-500 hover:text-red-400 uppercase tracking-widest transition-colors w-full"
                 >
                   Acceso Jefe de Cobro / Crear Admin
@@ -1667,7 +1811,7 @@ function NavButton({ active, icon, label, onClick }: { active: boolean, icon: Re
 
 // --- Screens ---
 
-function HomeScreen({ loans, payments, clients, onOpenPayment }: { loans: Loan[], payments: Payment[], clients: Client[], onOpenPayment: (loan: Loan) => void }) {
+function HomeScreen({ loans, payments, clients, onOpenPayment, deferredPrompt, onInstall }: { loans: Loan[], payments: Payment[], clients: Client[], onOpenPayment: (loan: Loan) => void, deferredPrompt: any, onInstall: () => void }) {
   const [filterType, setFilterType] = useState<'todos' | 'atrasados' | 'vencidos'>('todos');
 
   // Filtrar solo préstamos activos que NO han pagado hoy
@@ -1698,6 +1842,29 @@ function HomeScreen({ loans, payments, clients, onOpenPayment }: { loans: Loan[]
 
   return (
     <div className="space-y-4">
+      {deferredPrompt && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-blue-600 p-4 rounded-3xl text-white mb-2 flex items-center justify-between shadow-xl shadow-blue-900/20"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+              <Download size={20} />
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-tight">Instalar Aplicación</p>
+              <p className="text-[9px] font-bold opacity-80 uppercase leading-none mt-1">Accede más rápido desde tu menú</p>
+            </div>
+          </div>
+          <button 
+            onClick={onInstall}
+            className="px-5 py-2.5 bg-white text-blue-600 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+          >
+            Descargar
+          </button>
+        </motion.div>
+      )}
       {/* Filtros */}
       <div className="space-y-4 mb-2">
         <div className="flex gap-2">
@@ -2874,32 +3041,34 @@ function HistorySearchModal({ isOpen, onClose, clients, allPayments, allLoans }:
               <div className="space-y-3">
                 <p className="text-xs font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
                    <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                   ¿Cómo funciona?
+                   ¿Perdiste tu celular?
                 </p>
                 <p className="text-[11px] font-medium text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  Arquitectura <b>Local-First</b>: Los datos viven en tu dispositivo (IndexedDB). Al <b>Recuperar</b>, el sistema solicita tu respaldo a Google, lo descarga en formato JSON y sobrescribe tu base local para restaurar todo al instante.
+                  Si cambias de equipo o pierdes tu móvil, solo debes ingresar tu <b>Nombre de Usuario</b> y tu <b>PIN (Teléfono)</b> en el nuevo dispositivo.
                 </p>
               </div>
 
               <div className="space-y-3">
                 <p className="text-xs font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
                    <div className="w-2 h-2 bg-green-600 rounded-full" />
-                   Lógica del Sistema
+                   Pasos para recuperar:
                 </p>
-                <div className="text-[10px] font-bold text-slate-500 uppercase leading-loose space-y-2">
-                  <div className="flex gap-2"><span className="text-slate-950">1. VALIDACIÓN:</span> Verifica Nombre y PIN.</div>
-                  <div className="flex gap-2"><span className="text-slate-950">2. PETICIÓN:</span> Solicitud GET segura a la nube.</div>
-                  <div className="flex gap-2"><span className="text-slate-950">3. LIMPIEZA:</span> Borra datos actuales para evitar duplicados.</div>
-                  <div className="flex gap-2"><span className="text-slate-950">4. TRANSFORMACIÓN:</span> Convierte texto a fechas reales.</div>
-                  <div className="flex gap-2"><span className="text-slate-950">5. REFRESCO:</span> Reinicio automático para ver cambios.</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase leading-loose space-y-4">
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">1</div>
+                    <span>Al entrar la App estará <b>VACÍA</b>. Esto es normal al inicio.</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 font-black">2</div>
+                    <span>Busca y pulsa el botón azul <b>"BAJAR DATOS"</b> en el menú principal.</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-lg bg-green-600 text-white flex items-center justify-center shrink-0 font-black">3</div>
+                    <span>Toda tu lista de clientes y cobros volverá a aparecer al instante.</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                <p className="text-[10px] font-black text-amber-800 uppercase tracking-tighter text-center">
-                  Función clave: <b>handleCloudRestore</b>
-                </p>
-              </div>
             </div>
           )}
 
