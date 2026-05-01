@@ -40,8 +40,8 @@ export default defineConfig(({ mode }) => {
           background_color: '#020617',
           display: 'standalone',
           orientation: 'portrait',
-          scope: './',
-          start_url: './',
+          scope: '/sistema-de-prestamos/',
+          start_url: '/sistema-de-prestamos/',
           icons: [
             {
               src: 'icon.png',
@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
-    base: './',
+    base: '/sistema-de-prestamos/',
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
